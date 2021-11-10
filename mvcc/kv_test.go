@@ -634,7 +634,7 @@ func TestKVRestore(t *testing.T) {
 		b, tmpPath := backend.NewDefaultTmpBackend()
 		s := NewStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, StoreConfig{})
 		tt(s)
-		var kvss [][]mvccpb.KeyValue
+		var kvss [][]*mvccpb.KeyValue
 		for k := int64(0); k < 10; k++ {
 			r, _ := s.Range([]byte("a"), []byte("z"), RangeOptions{Rev: k})
 			kvss = append(kvss, r.KVs)
@@ -652,7 +652,7 @@ func TestKVRestore(t *testing.T) {
 
 		// wait for possible compaction to finish
 		testutil.WaitSchedule()
-		var nkvss [][]mvccpb.KeyValue
+		var nkvss [][]*mvccpb.KeyValue
 		for k := int64(0); k < 10; k++ {
 			r, _ := ns.Range([]byte("a"), []byte("z"), RangeOptions{Rev: k})
 			nkvss = append(nkvss, r.KVs)

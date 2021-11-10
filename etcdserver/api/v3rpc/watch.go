@@ -404,7 +404,7 @@ func (sws *serverWatchStream) sendLoop() {
 					opt := mvcc.RangeOptions{Rev: evs[i].Kv.ModRevision - 1}
 					r, err := sws.watchable.Range(evs[i].Kv.Key, nil, opt)
 					if err == nil && len(r.KVs) != 0 {
-						events[i].PrevKv = &(r.KVs[0])
+						events[i].PrevKv = r.KVs[0]
 					}
 				}
 			}

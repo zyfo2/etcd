@@ -218,7 +218,7 @@ func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.Pu
 	}
 	if p.PrevKv {
 		if rr != nil && len(rr.KVs) != 0 {
-			resp.PrevKv = &rr.KVs[0]
+			resp.PrevKv = rr.KVs[0]
 		}
 	}
 
@@ -245,7 +245,7 @@ func (a *applierV3backend) DeleteRange(txn mvcc.TxnWrite, dr *pb.DeleteRangeRequ
 		if rr != nil {
 			resp.PrevKvs = make([]*mvccpb.KeyValue, len(rr.KVs))
 			for i := range rr.KVs {
-				resp.PrevKvs[i] = &rr.KVs[i]
+				resp.PrevKvs[i] = rr.KVs[i]
 			}
 		}
 	}
@@ -346,7 +346,7 @@ func (a *applierV3backend) Range(ctx context.Context, txn mvcc.TxnRead, r *pb.Ra
 		if r.KeysOnly {
 			rr.KVs[i].Value = nil
 		}
-		resp.Kvs[i] = &rr.KVs[i]
+		resp.Kvs[i] = rr.KVs[i]
 	}
 	trace.Step("assemble the response")
 	return resp, nil
@@ -463,7 +463,7 @@ func applyCompare(rv mvcc.ReadView, c *pb.Compare) bool {
 			// nil == empty string in grpc; no way to represent missing value
 			return false
 		}
-		return compareKV(c, mvccpb.KeyValue{})
+		return compareKV(c, &mvccpb.KeyValue{})
 	}
 	for _, kv := range rr.KVs {
 		if !compareKV(c, kv) {
@@ -473,7 +473,7 @@ func applyCompare(rv mvcc.ReadView, c *pb.Compare) bool {
 	return true
 }
 
-func compareKV(c *pb.Compare, ckv mvccpb.KeyValue) bool {
+func compareKV(c *pb.Compare, ckv *mvccpb.KeyValue) bool {
 	var result int
 	rev := int64(0)
 	switch c.Target {
@@ -868,7 +868,7 @@ func (a *quotaApplierV3) LeaseGrant(lc *pb.LeaseGrantRequest) (*pb.LeaseGrantRes
 	return resp, err
 }
 
-type kvSort struct{ kvs []mvccpb.KeyValue }
+type kvSort struct{ kvs []*mvccpb.KeyValue }
 
 func (s *kvSort) Swap(i, j int) {
 	t := s.kvs[i]
@@ -1019,7 +1019,7 @@ func pruneKVs(rr *mvcc.RangeResult, isPrunable func(*mvccpb.KeyValue) bool) {
 	j := 0
 	for i := range rr.KVs {
 		rr.KVs[j] = rr.KVs[i]
-		if !isPrunable(&rr.KVs[i]) {
+		if !isPrunable(rr.KVs[i]) {
 			j++
 		}
 	}

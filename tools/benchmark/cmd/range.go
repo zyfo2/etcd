@@ -57,6 +57,7 @@ func rangeFunc(cmd *cobra.Command, args []string) {
 	}
 
 	k := args[0]
+
 	end := ""
 	if len(args) == 2 {
 		end = args[1]

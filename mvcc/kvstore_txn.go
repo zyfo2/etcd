@@ -20,6 +20,7 @@ import (
 	"go.etcd.io/etcd/mvcc/mvccpb"
 	"go.etcd.io/etcd/pkg/traceutil"
 	"go.uber.org/zap"
+	"strconv"
 )
 
 type storeTxnRead struct {
@@ -140,9 +141,16 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 		limit = len(revpairs)
 	}
 
-	kvs := make([]mvccpb.KeyValue, limit)
+	kvs := make([]*mvccpb.KeyValue, limit)
 	revBytes := newRevBytes()
 	for i, revpair := range revpairs[:len(kvs)] {
+		tr.s.clock.RLock()
+		v, exists := tr.s.cache[revpair]
+		tr.s.clock.RUnlock()
+		if exists {
+			kvs[i] = &v
+			continue
+		}
 		revToBytes(revpair, revBytes)
 		_, vs := tr.tx.UnsafeRange(keyBucketName, revBytes, nil, 0)
 		if len(vs) != 1 {
@@ -156,7 +164,8 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 				plog.Fatalf("range cannot find rev (%d,%d)", revpair.main, revpair.sub)
 			}
 		}
-		if err := kvs[i].Unmarshal(vs[0]); err != nil {
+		x := mvccpb.KeyValue{}
+		if err := x.Unmarshal(vs[0]); err != nil {
 			if tr.s.lg != nil {
 				tr.s.lg.Fatal(
 					"failed to unmarshal mvccpb.KeyValue",
@@ -165,6 +174,12 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 			} else {
 				plog.Fatalf("cannot unmarshal event: %v", err)
 			}
+		} else {
+			kvs[i] = &x
+			tr.s.clock.Lock()
+			tr.s.cache[revpair] = x
+			tr.s.clock.Unlock()
+			plog.Warning("caching " + strconv.Itoa(i))
 		}
 	}
 	tr.trace.Step("range keys from bolt db")

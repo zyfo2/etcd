@@ -89,6 +89,9 @@ type store struct {
 
 	ig ConsistentIndexGetter
 
+	cache map[revision]mvccpb.KeyValue
+	clock sync.RWMutex
+
 	b       backend.Backend
 	kvindex index
 
@@ -125,6 +128,8 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 		b:       b,
 		ig:      ig,
 		kvindex: newTreeIndex(lg),
+		cache: map[revision]mvccpb.KeyValue{},
+		clock: sync.RWMutex{},
 
 		le: le,
 
