@@ -28,7 +28,7 @@ type RangeOptions struct {
 }
 
 type RangeResult struct {
-	KVs   []mvccpb.KeyValue
+	KVs   []*mvccpb.KeyValue
 	Rev   int64
 	Count int
 }

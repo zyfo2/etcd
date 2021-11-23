@@ -20,6 +20,7 @@ import (
 	"go.etcd.io/etcd/mvcc/mvccpb"
 	"go.etcd.io/etcd/pkg/traceutil"
 	"go.uber.org/zap"
+	"strconv"
 )
 
 type storeTxnRead struct {
@@ -140,9 +141,25 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 		limit = len(revpairs)
 	}
 
-	kvs := make([]mvccpb.KeyValue, limit)
+	kvs := make([]*mvccpb.KeyValue, limit)
 	revBytes := newRevBytes()
+	costs := 0
+	cached := tr.s.cache.hasCachedRequest(string(key))
+	if !cached {
+		plog.Warning("caching not found:" + string(key))
+	}
 	for i, revpair := range revpairs[:len(kvs)] {
+		if cached {
+			v, ok := tr.s.cache.get(revpair)
+			if ok {
+				kvs[i] = v
+				costs += kvs[i].Size()
+				continue
+			} else {
+				plog.Warning("cache miss:" + strconv.Itoa(i))
+			}
+		}
+
 		revToBytes(revpair, revBytes)
 		_, vs := tr.tx.UnsafeRange(keyBucketName, revBytes, nil, 0)
 		if len(vs) != 1 {
@@ -156,7 +173,8 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 				plog.Fatalf("range cannot find rev (%d,%d)", revpair.main, revpair.sub)
 			}
 		}
-		if err := kvs[i].Unmarshal(vs[0]); err != nil {
+		keyValue := mvccpb.KeyValue{}
+		if err := keyValue.Unmarshal(vs[0]); err != nil {
 			if tr.s.lg != nil {
 				tr.s.lg.Fatal(
 					"failed to unmarshal mvccpb.KeyValue",
@@ -166,7 +184,10 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 				plog.Fatalf("cannot unmarshal event: %v", err)
 			}
 		}
+		kvs[i] = &keyValue
+		costs += kvs[i].Size()
 	}
+	tr.s.cache.updateCacheIfNecessary(string(key), costs, revpairs[:len(kvs)], kvs)
 	tr.trace.Step("range keys from bolt db")
 	return &RangeResult{KVs: kvs, Count: len(revpairs), Rev: curRev}, nil
 }

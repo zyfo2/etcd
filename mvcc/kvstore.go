@@ -89,6 +89,8 @@ type store struct {
 
 	ig ConsistentIndexGetter
 
+	cache *storeCache
+
 	b       backend.Backend
 	kvindex index
 
@@ -125,6 +127,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 		b:       b,
 		ig:      ig,
 		kvindex: newTreeIndex(lg),
+		cache:   newStoreCache(),
 
 		le: le,
 
